@@ -563,11 +563,28 @@
         Baselines represent order-of-magnitude estimates of a large annual research campaign.
       </p>
       <p>
-        <strong>Effective compute.</strong>
-        Algorithmic progress halves the compute needed for fixed task performance roughly every 9 months
-        (Erdil &amp; Besiroglu 2022, as cited in the Epoch framework). The cumulative efficiency multiplier is
-        <code>M(t) = 2^((t–2024)/0.75)</code>. Effective compute is <code>C_eff(t) = C_raw(t) / M(t)</code>.
-        This models the actual FLOP cost after applying the best available training recipes at each future date.
+        <strong>Effective compute — training component.</strong>
+        Training-like compute (SAE training runs, fine-tuning, empirical validation experiments) benefits from
+        algorithmic progress: the same task performance requires half the FLOPs every ~9 months
+        (Erdil &amp; Besiroglu 2022). Multiplier: <code>M_train(t) = 2^((t–2024)/0.75)</code>.
+      </p>
+      <p>
+        <strong>Effective compute — inference component.</strong>
+        Inference-like compute (benchmark execution, activation patching, red-teaming runs, lattice algorithm sweeps)
+        improves via two separate drivers: (1) hardware price-performance, historically ~2× per 2 years for GPU
+        FLOPs/$; (2) software/utilization gains (quantization, better batching, speculative decoding, KV-cache
+        improvements), estimated at ~2× per 2.5 years. These compound:
+        <code>M_inf(t) = 2^((t–2024)·(1/2.0 + 1/2.5))</code> ≈ 2× per ~1.1 years — slower than training
+        algorithmic progress but still substantial.
+      </p>
+      <p>
+        <strong>Combined effective compute.</strong>
+        Each task has a <em>training fraction</em> (trainFrac, shown on task cards) estimating what share of its
+        compute is training-like vs inference-like. Combined:
+        <code>C_eff(t) = C_raw(t) · [trainFrac / M_train(t) + (1–trainFrac) / M_inf(t)]</code>.
+        The hover tooltip and AGI-year context table show both components separately. Interpretability and learning
+        theory are training-heavy (55–65%); red-teaming, evaluations, and complexity theory are inference-heavy
+        (85–90%), and therefore improve more slowly in effective-compute terms.
       </p>
       <p>
         <strong>H100 reference lines.</strong>
@@ -610,6 +627,8 @@ const F_GROWTH      = 2.5;           // ×/year
 const ALGO_DBL      = 0.75;          // years (9 months)
 const H100_YR       = 6e22;          // FLOPs per H100-GPU-year
 const H100_USD_YR   = 20000;         // $ per H100-GPU-year (cloud rental)
+const INF_HW_DBL    = 2.0;           // Inference HW price-perf: 2× per 2 years
+const INF_SW_DBL    = 2.5;           // Inference SW/utilization (quant, batching, etc.): 2× per 2.5 years
 
 function frontier(y)     { return F0 * Math.pow(F_GROWTH, y - 2024); }
 function frontierLong(y) {
@@ -617,8 +636,18 @@ function frontierLong(y) {
   return frontier(2040) * Math.pow(1.4, y - 2040);
 }
 function algoMul(y)   { return Math.pow(2, (y - 2024) / ALGO_DBL); }
+// Inference: HW price-perf × SW/utilization improvements compound independently
+function infMul(y)    { return Math.pow(2, (y - 2024) * (1/INF_HW_DBL + 1/INF_SW_DBL)); }
+
 function rawC(b,e,y,fn) { return b * Math.pow(fn(y) / F0, e); }
-function effC(b,e,y,fn) { return rawC(b,e,y,fn) / algoMul(y); }
+// tf = trainFrac: fraction of task compute that is training-like (vs inference-like)
+// Training-like improves at algorithmic progress rate; inference-like at HW+SW rate
+function effC(b,e,y,fn,tf) {
+  const raw = rawC(b,e,y,fn);
+  return raw * tf / algoMul(y) + raw * (1 - tf) / infMul(y);
+}
+function effCTrain(b,e,y,fn,tf) { return rawC(b,e,y,fn) * tf       / algoMul(y); }
+function effCInf(b,e,y,fn,tf)   { return rawC(b,e,y,fn) * (1 - tf) / infMul(y);  }
 
 function range(a, b, n) {
   return Array.from({ length: n }, (_, i) => a + (b - a) * i / (n - 1));
@@ -642,8 +671,8 @@ const S = [
           'Automated interpretability: using capable AI to label SAE features at scale',
           'Linear representation hypothesis validation across architectures',
         ],
-        base: 8e21, exp: 0.72, color: '#ff6b6b',
-        note: 'exp 0.72 — SAE training and activation patching must scale with frontier model size'
+        base: 8e21, exp: 0.72, color: '#ff6b6b', trainFrac: 0.65,
+        note: 'exp 0.72 — SAE training and activation patching must scale with frontier model size; ~65% training-like (SAE runs), ~35% inference-like (activation patching, feature labeling)'
       },
       {
         label: 'Control AI Agenda',
@@ -655,8 +684,8 @@ const S = [
           'Verifying that AI systems cannot circumvent oversight mechanisms',
           'Iterating protocols in response to capability jumps — requires frontier access',
         ],
-        base: 4e22, exp: 0.80, color: '#ffa94d',
-        note: 'exp 0.80 — strongest frontier coupling; protocols are only meaningful against capable AI'
+        base: 4e22, exp: 0.80, color: '#ffa94d', trainFrac: 0.25,
+        note: 'exp 0.80 — strongest frontier coupling; protocols are only meaningful against capable AI; ~25% training-like (fine-tuning protocol variants), ~75% inference-like (red-teaming runs)'
       },
       {
         label: 'Red-teaming',
@@ -668,8 +697,8 @@ const S = [
           'Detecting alignment faking and goal misgeneralization under distribution shift',
           'Multi-model adversarial pipelines (LLM vs LLM red-teaming)',
         ],
-        base: 2e21, exp: 0.65, color: '#ffd43b',
-        note: 'exp 0.65 — inference-heavy; scales with model size but not full training runs'
+        base: 2e21, exp: 0.65, color: '#ffd43b', trainFrac: 0.10,
+        note: 'exp 0.65 — inference-heavy; scales with model size but not full training runs; ~10% training-like, ~90% inference-like (adversarial prompt generation, elicitation sweeps)'
       },
       {
         label: 'Evaluations',
@@ -681,8 +710,8 @@ const S = [
           'Scalable oversight benchmarks and debate evaluation',
           'Tracking emergence of novel capabilities across model generations',
         ],
-        base: 5e20, exp: 0.60, color: '#69db7c',
-        note: 'exp 0.60 — benchmark sweeps; lighter per-run but broad model population coverage required'
+        base: 5e20, exp: 0.60, color: '#69db7c', trainFrac: 0.10,
+        note: 'exp 0.60 — benchmark sweeps; lighter per-run but broad model population coverage required; ~10% training-like, ~90% inference-like (benchmark execution across model population)'
       },
     ]
   },
@@ -703,8 +732,8 @@ const S = [
           'Causal tracing and path patching at the scale of future models',
           'Using capable AI models to automatically explain and catalog features',
         ],
-        base: 1e22, exp: 0.75, color: '#cc5de8',
-        note: 'exp 0.75 — moderate-strong frontier coupling; target models keep growing'
+        base: 1e22, exp: 0.75, color: '#cc5de8', trainFrac: 0.65,
+        note: 'exp 0.75 — moderate-strong frontier coupling; target models keep growing; ~65% training-like (SAE training, causal tracing reruns), ~35% inference-like (analysis passes)'
       },
       {
         label: 'Evaluations',
@@ -716,8 +745,8 @@ const S = [
           'Cross-model consistency and behavioral fingerprinting at scale',
           'Scalable oversight evaluation: debate, amplification, and recursive reward modeling',
         ],
-        base: 5e20, exp: 0.62, color: '#339af0',
-        note: 'exp 0.62 — scales with number and size of models evaluated across the ecosystem'
+        base: 5e20, exp: 0.62, color: '#339af0', trainFrac: 0.10,
+        note: 'exp 0.62 — scales with number and size of models evaluated across the ecosystem; ~10% training-like, ~90% inference-like (agentic benchmark execution)'
       },
       {
         label: 'Learning Theory',
@@ -729,8 +758,8 @@ const S = [
           'Studying sharp phase transitions and emergent capabilities from first principles',
           'Formal verification of learning algorithms in simplified model classes',
         ],
-        base: 3e19, exp: 0.47, color: '#20c997',
-        note: 'exp 0.47 — mixed theory/empirical; validation on real models matters but isn\'t dominant'
+        base: 3e19, exp: 0.47, color: '#20c997', trainFrac: 0.55,
+        note: 'exp 0.47 — mixed theory/empirical; validation on real models matters but isn\'t dominant; ~55% training-like (empirical training runs for bound validation), ~45% inference-like (evaluation passes)'
       },
     ]
   },
@@ -751,8 +780,8 @@ const S = [
           'Formal study of neural scaling laws — why do power laws hold, and when do they break?',
           'Sample complexity theory for alignment-relevant task distributions',
         ],
-        base: 3e19, exp: 0.42, color: '#4dabf7',
-        note: 'exp 0.42 — moderate; theory-driven with a partial empirical validation component'
+        base: 3e19, exp: 0.42, color: '#4dabf7', trainFrac: 0.45,
+        note: 'exp 0.42 — moderate; theory-driven with a partial empirical validation component; ~45% training-like, ~55% inference-like'
       },
       {
         label: 'Computational Complexity',
@@ -764,8 +793,8 @@ const S = [
           'Cryptographic hardness assumptions as a foundation for AI safety guarantees',
           'Reductions between learning, verification, and oversight tasks',
         ],
-        base: 5e15, exp: 0.18, color: '#38d9a9',
-        note: 'exp 0.18 — near-compute-independent; formal proofs tractable at any compute level'
+        base: 5e15, exp: 0.18, color: '#38d9a9', trainFrac: 0.15,
+        note: 'exp 0.18 — near-compute-independent; formal proofs tractable at any compute level; ~15% training-like, ~85% inference-like (running proof-checkers, small experiments)'
       },
       {
         label: 'Information Theory',
@@ -777,8 +806,8 @@ const S = [
           'Channel capacity of human oversight as a bottleneck for AI alignment',
           'Minimum description length principles applied to neural architecture selection',
         ],
-        base: 1e16, exp: 0.22, color: '#9775fa',
-        note: 'exp 0.22 — mainly theoretical; small experimental component for empirical capacity bounds'
+        base: 1e16, exp: 0.22, color: '#9775fa', trainFrac: 0.15,
+        note: 'exp 0.22 — mainly theoretical; small experimental component for empirical capacity bounds; ~15% training-like, ~85% inference-like'
       },
       {
         label: 'Cryptography',
@@ -790,8 +819,8 @@ const S = [
           'Studying AI-assisted cryptanalysis: what does a frontier AI change about cryptographic assumptions?',
           'Cryptographic commitment schemes for verifiable oversight of AI systems',
         ],
-        base: 8e17, exp: 0.32, color: '#f783ac',
-        note: 'exp 0.32 — lattice computations and empirical testing scale modestly with FLOP availability'
+        base: 8e17, exp: 0.32, color: '#f783ac', trainFrac: 0.15,
+        note: 'exp 0.32 — lattice computations and empirical testing scale modestly with FLOP availability; ~15% training-like, ~85% inference-like (lattice algorithm execution)'
       },
     ]
   }
@@ -847,21 +876,28 @@ function buildTraces(s, type, showFrontier, showRefs) {
 
   // Task traces
   for (const t of s.tasks) {
-    const rY = years.map(y => rawC(t.base, t.exp, y, fn));
-    const eY = years.map(y => effC(t.base, t.exp, y, fn));
+    const tf = t.trainFrac;
+    const rY      = years.map(y => rawC(t.base, t.exp, y, fn));
+    const eY      = years.map(y => effC(t.base, t.exp, y, fn, tf));
+    const eTrain  = years.map(y => effCTrain(t.base, t.exp, y, fn, tf));
+    const eInf    = years.map(y => effCInf(t.base, t.exp, y, fn, tf));
     const frontierY = years.map(y => fn(y));
 
-    // Build customdata: [h100Years_raw, pct_frontier_raw, h100Years_eff, pct_frontier_eff, algoMul]
+    // cdRaw: [h100yrs, pct_frontier, costK]
     const cdRaw = years.map((y, i) => [
       (rY[i] / H100_YR).toPrecision(2),
       ((rY[i] / frontierY[i]) * 100).toPrecision(2),
       Math.round(rY[i] / H100_YR * H100_USD_YR / 1e3),
     ]);
+    // cdEff: [h100yrs, pct_frontier, costK, algoMul, infMul, eTrain, eInf]
     const cdEff = years.map((y, i) => [
       (eY[i] / H100_YR).toPrecision(2),
       ((eY[i] / frontierY[i]) * 100).toPrecision(2),
       Math.round(eY[i] / H100_YR * H100_USD_YR / 1e3),
       algoMul(y).toPrecision(3),
+      infMul(y).toPrecision(3),
+      eTrain[i].toExponential(1),
+      eInf[i].toExponential(1),
     ]);
 
     if (type === 'raw' || type === 'both') {
@@ -894,11 +930,12 @@ function buildTraces(s, type, showFrontier, showRefs) {
         hovertemplate:
           `<b>${t.label} (effective)</b>` +
           `<br>Year: %{x:.1f}` +
-          `<br>Effective compute: <b>%{y:.2e}</b> FLOPs` +
+          `<br>Effective (combined): <b>%{y:.2e}</b> FLOPs` +
+          `<br>  ↳ training component: %{customdata[5]} FLOPs  (÷algo ×%{customdata[3]})` +
+          `<br>  ↳ inference component: %{customdata[6]} FLOPs  (÷HW×SW ×%{customdata[4]})` +
           `<br>≈ %{customdata[0]} H100-GPU-years` +
           `<br>≈ $%{customdata[2]}K (cloud)` +
           `<br>= %{customdata[1]}% of frontier` +
-          `<br>÷ algo-efficiency ×%{customdata[3]}` +
           `<extra></extra>`,
       });
     }
@@ -1031,8 +1068,11 @@ function renderContext(id) {
   `;
 
   for (const t of s.tasks) {
+    const tf  = t.trainFrac;
     const raw = rawC(t.base, t.exp, y, fn);
-    const eff = effC(t.base, t.exp, y, fn);
+    const eff = effC(t.base, t.exp, y, fn, tf);
+    const effTr = effCTrain(t.base, t.exp, y, fn, tf);
+    const effIn = effCInf(t.base, t.exp, y, fn, tf);
     const pctF = (raw / fv * 100);
     const h100raw = raw / H100_YR;
     const h100eff = eff / H100_YR;
@@ -1065,8 +1105,16 @@ function renderContext(id) {
             <span class="ctx-row-val" style="color:${t.color}">${raw.toExponential(1)} FLOPs</span>
           </div>
           <div class="ctx-row">
-            <span class="ctx-row-label">Effective</span>
+            <span class="ctx-row-label">Eff (combined)</span>
             <span class="ctx-row-val" style="color:${t.color}">${eff.toExponential(1)} FLOPs</span>
+          </div>
+          <div class="ctx-row">
+            <span class="ctx-row-label">↳ train (${(tf*100).toFixed(0)}%)</span>
+            <span class="ctx-row-val">${effTr.toExponential(1)}</span>
+          </div>
+          <div class="ctx-row">
+            <span class="ctx-row-label">↳ inf (${((1-tf)*100).toFixed(0)}%)</span>
+            <span class="ctx-row-val">${effIn.toExponential(1)}</span>
           </div>
           <div class="ctx-row">
             <span class="ctx-row-label">H100-yrs (raw)</span>
@@ -1106,6 +1154,10 @@ function renderCards(id) {
         <div class="tc-m">
           <span class="tc-ml">Scale exp</span>
           <span class="tc-mv" style="color:${t.color}">${t.exp}</span>
+        </div>
+        <div class="tc-m">
+          <span class="tc-ml">Train frac</span>
+          <span class="tc-mv" style="color:${t.color}">${(t.trainFrac*100).toFixed(0)}%</span>
         </div>
         <div class="tc-m">
           <span class="tc-ml">H100-yrs (2024)</span>
