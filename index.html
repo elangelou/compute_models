@@ -555,12 +555,33 @@
         hardware ceiling as Moore's law slows and fab economics constrain production.
       </p>
       <p>
-        <strong>Task compute (raw).</strong>
-        Each research agenda has a 2024 baseline compute requirement and a frontier-scaling exponent.
+        <strong>Task compute (raw) — 2024 baselines.</strong>
         <code>C_raw(t) = base × (F(t)/F₀)^exp</code>.
-        Exponents reflect how tightly a task must be coupled to frontier scale: 0.80 (Control AI —
-        must test against genuinely capable models) down to 0.18 (complexity theory — mostly proof-based).
-        Baselines represent order-of-magnitude estimates of a large annual research campaign.
+        Base values are anchored where possible to published empirical data. Gao et al. 2024
+        ("Scaling and evaluating sparse autoencoders," arXiv:2406.04093) trained a 16M-latent SAE on
+        GPT-4 activations across 40B tokens; back-of-envelope FLOPs ≈ 6 × d_model × 16M × 40B ≈ 5×10²² FLOPs
+        for a single large SAE run, putting an annual interpretability research program in the 10²² – 10²³ range.
+        InstructGPT (Ouyang et al. 2022, arXiv:2203.02155) reports RLHF training requires roughly 1–2%
+        of pretraining compute, giving ~3–6×10²³ FLOPs at 2024 frontier scale — an upper reference for
+        compute-intensive safety fine-tuning. METR evaluations (2024) use 2M tokens/task × 77 tasks × 10 runs
+        ≈ 1.5B tokens per model at ~2×10¹¹ FLOPs/token for current frontier, yielding ~3×10²⁰ FLOPs
+        per full evaluation suite. Theory tasks have near-zero empirical compute and are anchored to
+        typical proof-assistant and lattice-algorithm run costs.
+      </p>
+      <p>
+        <strong>Task compute (raw) — frontier-scaling exponents.</strong>
+        No paper has published an empirical table of "safety research compute vs. frontier model size."
+        Exponents are derived from known LLM scaling relationships. Chinchilla-optimal training gives
+        N ∝ F^0.5 (parameters grow as the square root of compute), and empirically d_model ≈ 16 × N^0.5
+        (Kaplan et al. 2020; Hoffmann et al. 2022), so <strong>d_model ∝ F^0.25</strong>.
+        SAE training cost ≈ 6 × d_model × features × T_tokens; with features ∝ d_model and T ∝ d_model
+        (coverage scales with representation width), cost ∝ d_model³ ∝ F^0.75. This structural
+        argument supports exponents of 0.65–0.75 for interpretability. For inference-only tasks
+        (red-teaming, evaluations), cost-per-query ∝ N ∝ F^0.5, with number-of-queries growing
+        more slowly than d_model (∝ F^0.1–0.25), yielding exp ≈ 0.55–0.65. Theory tasks have
+        exponents of 0.18–0.42 reflecting only their marginal empirical validation component, which
+        scales weakly with frontier size. All exponents carry substantial uncertainty; treat them as
+        structural estimates, not measurements.
       </p>
       <p>
         <strong>Effective compute — training component.</strong>
@@ -672,7 +693,7 @@ const S = [
           'Linear representation hypothesis validation across architectures',
         ],
         base: 8e21, exp: 0.72, color: '#ff6b6b', trainFrac: 0.65,
-        note: 'exp 0.72 — SAE training and activation patching must scale with frontier model size; ~65% training-like (SAE runs), ~35% inference-like (activation patching, feature labeling)'
+        note: 'exp 0.72 (derived) — SAE training cost ≈ 6·d_model·features·tokens; with features ∝ d_model and d_model ∝ F^0.25 (Chinchilla/Kaplan), cost ∝ F^0.75 at fixed token coverage. Exponent lowered slightly to 0.72 to reflect that token budgets grow sub-linearly with model size. Baseline ~8×10²¹ anchored near single large-SAE cost from Gao et al. 2024 (arXiv:2406.04093). ~65% training-like (SAE training runs), ~35% inference-like (activation patching, feature labeling)'
       },
       {
         label: 'Control AI Agenda',
@@ -685,7 +706,7 @@ const S = [
           'Iterating protocols in response to capability jumps — requires frontier access',
         ],
         base: 4e22, exp: 0.80, color: '#ffa94d', trainFrac: 0.25,
-        note: 'exp 0.80 — strongest frontier coupling; protocols are only meaningful against capable AI; ~25% training-like (fine-tuning protocol variants), ~75% inference-like (red-teaming runs)'
+        note: 'exp 0.80 (derived) — red-teaming inference cost ∝ N ∝ F^0.5; number of required red-team queries also grows with model capability space ∝ F^0.25–0.30, giving total ∝ F^0.75–0.80. Upper end reflects that containment protocols must be re-validated at every capability jump. Baseline ~4×10²² is within the InstructGPT RLHF reference range (~1–2% of frontier pretraining ≈ 3–6×10²³; Ouyang et al. 2022, arXiv:2203.02155), adjusted down for inference-dominated workload. ~25% training-like (fine-tuning protocol variants), ~75% inference-like (red-teaming runs)'
       },
       {
         label: 'Red-teaming',
@@ -698,7 +719,7 @@ const S = [
           'Multi-model adversarial pipelines (LLM vs LLM red-teaming)',
         ],
         base: 2e21, exp: 0.65, color: '#ffd43b', trainFrac: 0.10,
-        note: 'exp 0.65 — inference-heavy; scales with model size but not full training runs; ~10% training-like, ~90% inference-like (adversarial prompt generation, elicitation sweeps)'
+        note: 'exp 0.65 (derived) — inference cost per query ∝ N ∝ F^0.5; query count grows with behavior space ∝ F^0.15, giving total ∝ F^0.65. Ganguli et al. 2022 (arXiv:2209.07858) ran 38,961 red-team attacks across 2.7B/13B/52B models (~20× parameter range) finding qualitatively different scaling by training method, but did not publish FLOPs. Baseline ~2×10²¹ consistent with METR token budget data (~3×10²⁰ per model eval) scaled to a larger annual program. ~10% training-like, ~90% inference-like (adversarial prompt generation, elicitation sweeps)'
       },
       {
         label: 'Evaluations',
@@ -711,7 +732,7 @@ const S = [
           'Tracking emergence of novel capabilities across model generations',
         ],
         base: 5e20, exp: 0.60, color: '#69db7c', trainFrac: 0.10,
-        note: 'exp 0.60 — benchmark sweeps; lighter per-run but broad model population coverage required; ~10% training-like, ~90% inference-like (benchmark execution across model population)'
+        note: 'exp 0.60 (derived) — inference cost per run ∝ N ∝ F^0.5; coverage breadth grows more slowly than red-teaming (fewer novel behaviors per new model generation) ∝ F^0.10, giving total ∝ F^0.60. METR (2024) measures 2M tokens/task × 77 tasks × 10 runs ≈ 3×10²⁰ FLOPs per model evaluation at 2024 frontier; baseline 5×10²⁰ represents roughly 1–2 full evaluation suites annually. Source: METR Claude 3.5 Sonnet evaluation report, evaluations.metr.org. ~10% training-like, ~90% inference-like'
       },
     ]
   },
@@ -733,7 +754,7 @@ const S = [
           'Using capable AI models to automatically explain and catalog features',
         ],
         base: 1e22, exp: 0.75, color: '#cc5de8', trainFrac: 0.65,
-        note: 'exp 0.75 — moderate-strong frontier coupling; target models keep growing; ~65% training-like (SAE training, causal tracing reruns), ~35% inference-like (analysis passes)'
+        note: 'exp 0.75 (derived) — same structural argument as Scenario 1 interpretability (d_model ∝ F^0.25, SAE cost ∝ d_model² × tokens ∝ F^0.5–0.75). Slightly lower than Control AI because interpretability pipelines can tolerate some lag behind the very frontier. Baseline ~10²² consistent with Gao et al. 2024 single large-SAE estimate (~5×10²²) for a more modest annual program. ~65% training-like, ~35% inference-like'
       },
       {
         label: 'Evaluations',
@@ -746,7 +767,7 @@ const S = [
           'Scalable oversight evaluation: debate, amplification, and recursive reward modeling',
         ],
         base: 5e20, exp: 0.62, color: '#339af0', trainFrac: 0.10,
-        note: 'exp 0.62 — scales with number and size of models evaluated across the ecosystem; ~10% training-like, ~90% inference-like (agentic benchmark execution)'
+        note: 'exp 0.62 (derived) — same derivation as Scenario 1 evaluations but slightly higher because by 2035 agentic tasks require longer rollouts (token budgets scale with task horizon, which grows with model capability). METR already scales token budgets with capability: 2M tokens for Claude/GPT-4, 8M for o1, 16M for o3. ~10% training-like, ~90% inference-like'
       },
       {
         label: 'Learning Theory',
@@ -759,7 +780,7 @@ const S = [
           'Formal verification of learning algorithms in simplified model classes',
         ],
         base: 3e19, exp: 0.47, color: '#20c997', trainFrac: 0.55,
-        note: 'exp 0.47 — mixed theory/empirical; validation on real models matters but isn\'t dominant; ~55% training-like (empirical training runs for bound validation), ~45% inference-like (evaluation passes)'
+        note: 'exp 0.47 (derived) — theoretical work is compute-independent (exp → 0), but empirical PAC-Bayes validation requires training runs on real architectures, adding a component ∝ F^0.5–0.75. Weighted average of ~70% theory (exp≈0) and ~30% empirical training (exp≈0.65) gives effective exp ≈ 0.47. No direct empirical measurement; exponent is structurally motivated. ~55% training-like, ~45% inference-like'
       },
     ]
   },
@@ -781,7 +802,7 @@ const S = [
           'Sample complexity theory for alignment-relevant task distributions',
         ],
         base: 3e19, exp: 0.42, color: '#4dabf7', trainFrac: 0.45,
-        note: 'exp 0.42 — moderate; theory-driven with a partial empirical validation component; ~45% training-like, ~55% inference-like'
+        note: 'exp 0.42 (derived) — same decomposition as Scenario 2 learning theory but slightly lower because longer timelines allow more purely theoretical work relative to empirical validation. ~80% theory (exp≈0) + ~20% empirical (exp≈0.65) ≈ 0.42 effective. ~45% training-like, ~55% inference-like'
       },
       {
         label: 'Computational Complexity',
@@ -794,7 +815,7 @@ const S = [
           'Reductions between learning, verification, and oversight tasks',
         ],
         base: 5e15, exp: 0.18, color: '#38d9a9', trainFrac: 0.15,
-        note: 'exp 0.18 — near-compute-independent; formal proofs tractable at any compute level; ~15% training-like, ~85% inference-like (running proof-checkers, small experiments)'
+        note: 'exp 0.18 (derived) — almost entirely proof-based; ~95% theory (exp≈0) + ~5% small experiments (exp≈0.5 for running proof-checkers on larger instances) ≈ 0.18 effective. Baseline 5×10¹⁵ anchored to typical proof-assistant compute (Lean, Coq sessions run on CPUs; a year of intensive formal verification is well under 10¹⁶ FLOPs). ~15% training-like, ~85% inference-like'
       },
       {
         label: 'Information Theory',
@@ -807,7 +828,7 @@ const S = [
           'Minimum description length principles applied to neural architecture selection',
         ],
         base: 1e16, exp: 0.22, color: '#9775fa', trainFrac: 0.15,
-        note: 'exp 0.22 — mainly theoretical; small experimental component for empirical capacity bounds; ~15% training-like, ~85% inference-like'
+        note: 'exp 0.22 (derived) — similarly near-proof-based to complexity theory; small empirical component includes running channel-capacity estimation experiments on toy neural networks ∝ F^0.3–0.4. ~95% theory (exp≈0) + ~5% experiments (exp≈0.4) ≈ 0.22. ~15% training-like, ~85% inference-like'
       },
       {
         label: 'Cryptography',
@@ -820,7 +841,7 @@ const S = [
           'Cryptographic commitment schemes for verifiable oversight of AI systems',
         ],
         base: 8e17, exp: 0.32, color: '#f783ac', trainFrac: 0.15,
-        note: 'exp 0.32 — lattice computations and empirical testing scale modestly with FLOP availability; ~15% training-like, ~85% inference-like (lattice algorithm execution)'
+        note: 'exp 0.32 (derived) — lattice algorithm cost scales with lattice dimension, which grows with security parameter; as AI-enabled attacks improve with frontier, defenders must increase security parameters ∝ F^0.1–0.15, and running lattice algorithms at higher dimension costs more ∝ F^0.2. Combined ∝ F^0.32. No published empirical measurement; structurally motivated. ~15% training-like, ~85% inference-like (lattice algorithm execution)'
       },
     ]
   }
