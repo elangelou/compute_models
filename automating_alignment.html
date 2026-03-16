@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automating Alignment Research</title>
+  <style>
+    /* ── Tokens ─────────────────────────────────────────────────────────────── */
+    :root {
+      --bg:       #07080f;
+      --bg1:      #0d0f1c;
+      --bg2:      #111525;
+      --bg3:      #181d30;
+      --border:   #1e2540;
+      --border2:  #252d4a;
+      --text:     #e8edf5;
+      --text2:    #8892b0;
+      --text3:    #525f80;
+      --indigo:   #6366f1;
+      --indigo2:  #818cf8;
+      --indigo3:  #4f46e5;
+      --teal:     #2dd4bf;
+      --teal2:    #5eead4;
+      --amber:    #f59e0b;
+      --mono:     'SF Mono','JetBrains Mono','Fira Code','Cascadia Code',monospace;
+    }
+
+    /* ── Reset ──────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────────── */
+    .shell { max-width: 900px; margin: 0 auto; padding: 0 1.75rem 4rem; }
+
+    /* ── Header ─────────────────────────────────────────────────────────────── */
+    header { padding: 3rem 0 2rem; border-bottom: 1px solid var(--border); margin-bottom: 2.5rem; }
+    .header-kicker {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--teal2);
+      background: rgba(45,212,191,.08); border: 1px solid rgba(45,212,191,.2);
+      border-radius: 99px; padding: 0.25rem 0.75rem; margin-bottom: 1rem;
+    }
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800; line-height: 1.1; letter-spacing: -0.025em;
+      background: linear-gradient(120deg, #e8edf5 20%, #818cf8 80%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 1rem;
+    }
+    .header-sub {
+      max-width: 680px; font-size: 0.9rem; color: var(--text2); line-height: 1.75;
+    }
+
+    /* ── Section ────────────────────────────────────────────────────────────── */
+    .section { margin-bottom: 2.5rem; }
+    .section-header {
+      display: flex; align-items: center; gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .section-num {
+      font-family: var(--mono); font-size: 0.7rem; font-weight: 700;
+      color: var(--indigo2); background: rgba(99,102,241,.1);
+      border: 1px solid rgba(99,102,241,.25); border-radius: 5px;
+      padding: 0.2rem 0.5rem; letter-spacing: 0.05em; flex-shrink: 0;
+    }
+    h2 {
+      font-size: 1.05rem; font-weight: 700; color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .section-divider {
+      flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── Cards ──────────────────────────────────────────────────────────────── */
+    .cards { display: flex; flex-direction: column; gap: 0.6rem; }
+    .card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem 1.25rem;
+      transition: border-color 0.15s;
+    }
+    .card:hover { border-color: var(--border2); }
+    .card-title {
+      font-size: 0.87rem; font-weight: 600; color: var(--text);
+      margin-bottom: 0; line-height: 1.5;
+    }
+    .card-body {
+      font-size: 0.82rem; color: var(--text2); line-height: 1.7;
+      margin-top: 0.35rem;
+    }
+
+    /* ── Question cards (open research questions) ───────────────────────────── */
+    .q-card {
+      background: var(--bg1); border: 1px solid var(--border);
+      border-left: 3px solid var(--indigo); border-radius: 8px;
+      padding: 0.9rem 1.15rem; display: flex; gap: 0.75rem; align-items: flex-start;
+    }
+    .q-card:hover { border-color: rgba(99,102,241,.4); border-left-color: var(--indigo2); }
+    .q-icon { flex-shrink: 0; margin-top: 0.1rem; color: var(--indigo2); }
+    .q-text { font-size: 0.84rem; color: var(--text2); line-height: 1.7; }
+    .q-text strong { color: var(--text); font-weight: 600; }
+
+    /* ── Direction items (automation directions) ────────────────────────────── */
+    .dir-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.75rem;
+    }
+    .dir-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 1rem 1.15rem;
+      display: flex; align-items: flex-start; gap: 0.75rem;
+    }
+    .dir-card:hover { border-color: var(--border2); }
+    .dir-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--teal); flex-shrink: 0; margin-top: 0.35rem;
+    }
+    .dir-label { font-size: 0.84rem; font-weight: 600; color: var(--text); line-height: 1.5; }
+
+    /* ── Audience pills ─────────────────────────────────────────────────────── */
+    .audience-grid {
+      display: flex; flex-wrap: wrap; gap: 0.6rem;
+    }
+    .aud-pill {
+      display: flex; align-items: center; gap: 0.5rem;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.55rem 0.9rem;
+      font-size: 0.82rem; font-weight: 500; color: var(--text2);
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .aud-pill:hover { border-color: rgba(45,212,191,.3); color: var(--teal2); }
+    .aud-pill svg { color: var(--teal2); flex-shrink: 0; }
+
+    /* ── Assumption tags ─────────────────────────────────────────────────────── */
+    .assumption-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+    .assumption-tag {
+      font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; padding: 0.2rem 0.6rem;
+      border-radius: 5px; border: 1px solid;
+      color: #c4b5fd; background: rgba(139,92,246,.1); border-color: rgba(139,92,246,.25);
+    }
+
+    /* ── Footer ─────────────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border); margin-top: 3rem;
+      padding-top: 1.5rem;
+      font-size: 0.75rem; color: var(--text3);
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header>
+    <div class="header-kicker">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      AI Safety Research
+    </div>
+    <h1>Automating Alignment Research</h1>
+    <p class="header-sub">
+      A structured overview of the research landscape, open questions, automation directions,
+      and stakeholders relevant to using AI systems to accelerate alignment work.
+    </p>
+  </header>
+
+  <!-- ── Section 1: Preliminaries ────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <h2>Preliminaries</h2>
+      <div class="section-divider"></div>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-title">Understanding AI Alignment as a Science</div>
+        <div class="card-body">
+          Debate on whether alignment is pre-paradigmatic — lacking the shared frameworks,
+          benchmarks, and cumulative progress characteristic of mature scientific fields.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Key Technical Agendas</div>
+        <div class="card-body">
+          What are the most promising technical agendas, and how should resources be
+          allocated across them? Which bets are highest-leverage given current uncertainty?
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Why Automate Alignment? Weighing the Tradeoffs</div>
+        <div class="card-body">
+          Why do researchers and funders bet on AI doing our homework — and is this a good
+          or bad idea? Arguments for: speed of progress, scale of search space. Arguments
+          against: alignment tax, value lock-in, premature automation.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Evidence from Automating Other Scientific Fields</div>
+        <div class="card-body">
+          What can we learn from automation in adjacent domains? Key case study:
+          <strong>automating mathematics</strong> — theorem proving, conjecture generation,
+          and formal verification — and whether those lessons transfer to alignment.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Section 2: State of the Art ────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <h2>The State of the Art: AI for Science</h2>
+      <div class="section-divider"></div>
+    </div>
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-title">Vision &amp; Funding Landscape — US Government Perspective</div>
+        <div class="card-body">
+          How does the federal government frame AI-for-science investment? What agencies,
+          programs, and priorities are shaping the funding environment?
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Key Projects &amp; Accomplishments</div>
+        <div class="card-body">
+          A survey of the most significant existing initiatives in AI-accelerated research —
+          what they set out to do and what they have demonstrably achieved so far.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Main Assumptions Underlying R&amp;D Automation</div>
+        <div class="card-body">
+          Three pillars that most automation proposals implicitly rely on:
+        </div>
+        <div class="assumption-row">
+          <span class="assumption-tag">Compute Availability</span>
+          <span class="assumption-tag">Governmental Support</span>
+          <span class="assumption-tag">Societal Acceptance</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Section 3: Open Questions ───────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <h2>Open Questions Moving Forward</h2>
+      <div class="section-divider"></div>
+    </div>
+    <div class="cards">
+
+      <div class="q-card">
+        <svg class="q-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="q-text"><strong>Algorithm improvements:</strong> How useful are current models for identifying novel algorithm improvements in AI and alignment research?</div>
+      </div>
+
+      <div class="q-card">
+        <svg class="q-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="q-text"><strong>Complex codebases:</strong> How useful are models in helping improve complicated codebases, especially within AI companies where context depth is critical?</div>
+      </div>
+
+      <div class="q-card">
+        <svg class="q-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="q-text"><strong>Productivity tracking:</strong> How do we better measure the productivity of engineers and scientists? Self-reported data are unreliable — what objective proxies exist?</div>
+      </div>
+
+      <div class="q-card">
+        <svg class="q-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="q-text"><strong>Task horizon trends (METR):</strong> Do findings from the METR task horizon paper continue under current model scaling? Are the trends holding or diverging?</div>
+      </div>
+
+      <div class="q-card">
+        <svg class="q-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="q-text"><strong>Threat vector tracking:</strong> As AI R&amp;D capability improves, what metrics should we use to track the emergence of new threat vectors?</div>
+      </div>
+
+      <div class="q-card">
+        <svg class="q-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="q-text"><strong>Benchmarks for automating alignment:</strong> What would meaningful benchmarks for automating alignment research look like? How do we avoid Goodhart's Law?</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Section 4: Directions ────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <h2>Directions in Automating Alignment</h2>
+      <div class="section-divider"></div>
+    </div>
+    <div class="dir-grid">
+
+      <div class="dir-card">
+        <div class="dir-dot"></div>
+        <div class="dir-label">Automate evals pipelines and machine psychology experiments</div>
+      </div>
+
+      <div class="dir-card">
+        <div class="dir-dot"></div>
+        <div class="dir-label">Automate synthetic data generation</div>
+      </div>
+
+      <div class="dir-card">
+        <div class="dir-dot"></div>
+        <div class="dir-label">Automate pretraining via multi-agent orchestration across training steps</div>
+      </div>
+
+      <div class="dir-card">
+        <div class="dir-dot"></div>
+        <div class="dir-label">Automate circuit discovery in mechanistic interpretability</div>
+      </div>
+
+      <div class="dir-card">
+        <div class="dir-dot"></div>
+        <div class="dir-label">Automate monitoring of deployed systems</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Section 5: Audience ──────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <h2>Audience &amp; Stakeholders</h2>
+      <div class="section-divider"></div>
+    </div>
+    <div class="audience-grid">
+
+      <div class="aud-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Independent Evals Orgs
+      </div>
+
+      <div class="aud-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Auditors
+      </div>
+
+      <div class="aud-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Funding Orgs &amp; Grantmakers
+      </div>
+
+      <div class="aud-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+        US Government (e.g., Sen. Scott Wiener)
+      </div>
+
+      <div class="aud-pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        Academia
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Footer ───────────────────────────────────────────────────────────── -->
+  <footer>
+    <span>Automating Alignment Research</span>
+    <span>AI Safety Research</span>
+  </footer>
+
+</div>
+</body>
+</html>
